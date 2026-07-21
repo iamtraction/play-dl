@@ -1,4 +1,4 @@
-import { IncomingMessage } from 'node:http';
+import { IncomingMessage, OutgoingHttpHeaders } from 'node:http';
 import { RequestOptions, request as httpsRequest } from 'node:https';
 import { URL } from 'node:url';
 import { BrotliDecompress, Deflate, Gunzip, createGunzip, createBrotliDecompress, createDeflate } from 'node:zlib';
@@ -6,6 +6,7 @@ import { cookieHeaders, getCookies } from '../YouTube/utils/cookie';
 import { getRandomUserAgent } from './useragent';
 
 interface RequestOpts extends RequestOptions {
+    headers?: OutgoingHttpHeaders;
     body?: string;
     method?: 'GET' | 'POST' | 'HEAD';
     cookies?: boolean;

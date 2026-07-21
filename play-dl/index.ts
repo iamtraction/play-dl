@@ -5,7 +5,6 @@ import {
     decipher_info,
     yt_validate,
     extractID,
-    YouTube,
     YouTubeStream,
     YouTubeChannel,
     YouTubePlayList,
@@ -77,7 +76,7 @@ interface SearchOptions {
 import { createInterface } from 'node:readline';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { stream as yt_stream, StreamOptions, stream_from_info as yt_stream_info } from './YouTube/stream';
-import { yt_search } from './YouTube/search';
+import { yt_search, YouTube } from './YouTube/search';
 import { EventEmitter } from 'stream';
 
 async function stream(url: string, options: { seek?: number } & StreamOptions): Promise<YouTubeStream>;
