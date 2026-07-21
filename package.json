@@ -16,7 +16,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/play-dl/play-dl"
+    "url": "git+https://github.com/iamtraction/play-dl.git"
   },
   "keywords": [
     "node-youtube-dl",
@@ -29,15 +29,15 @@
     "soundcloud",
     "deezer"
   ],
-  "author": "Killer069",
-  "license": "GPL-3.0",
+  "author": "iamtraction",
+  "license": "GPL-3.0-or-later",
   "bugs": {
-    "url": "https://github.com/play-dl/play-dl/issues"
+    "url": "https://github.com/iamtraction/play-dl/issues"
   },
   "engines": {
     "node": ">=20.0.0"
   },
-  "homepage": "https://github.com/play-dl/play-dl#readme",
+  "homepage": "https://iamtraction.github.io/play-dl/",
   "files": [
     "dist/*"
   ],
