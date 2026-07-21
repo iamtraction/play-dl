@@ -22,7 +22,7 @@ First Request :-
 
 - Now just create a new file with this code :
     ```ts
-    const play = require('play-dl');
+    const play = require('@iamtraction/play-dl');
     
     play.authorization();
     ``` 
@@ -42,7 +42,7 @@ First Request :-
 
 5. Now create a `authorize.js` file and add this code :
     ```ts
-    const play = require('play-dl');
+    const play = require('@iamtraction/play-dl');
     
     play.authorization();
     ``` 
@@ -66,7 +66,7 @@ You will notice that a folder named `.data` has been created. **Do not delete th
 ## Getting Free Client ID
 
 ``` ts
-const play = require('play-dl')
+const play = require('@iamtraction/play-dl')
 
 play.getFreeClientID().then((clientID) => {
     play.setToken({
