@@ -1,9 +1,9 @@
-const { Intents, Client } = require('discord.js')
+const { GatewayIntentBits, Partials, Client } = require('discord.js')
 const { createAudioPlayer, createAudioResource , StreamType, demuxProbe, joinVoiceChannel, NoSubscriberBehavior, AudioPlayerStatus, VoiceConnectionStatus, getVoiceConnection } = require('@discordjs/voice')
-const play = require('play-dl')
+const play = require('@iamtraction/play-dl')
 const client = new Client({
-    intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.GUILD_VOICE_STATES, Intents.FLAGS.DIRECT_MESSAGES],
-    partials: ['CHANNEL', 'MESSAGE']
+    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.DirectMessages, GatewayIntentBits.MessageContent],
+    partials: [Partials.Channel, Partials.Message]
 })
 const token = '< YOUR BOT TOKEN >'
 
