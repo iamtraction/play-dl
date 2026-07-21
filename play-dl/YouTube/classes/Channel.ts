@@ -13,6 +13,23 @@ export interface ChannelIconInterface {
     height: number;
 }
 /**
+ * A single channel credited on a collaboration video/playlist.
+ */
+export interface ChannelCollaborator {
+    /**
+     * YouTube Channel ID.
+     */
+    id: string | null;
+    /**
+     * YouTube Channel Title.
+     */
+    name: string | null;
+    /**
+     * YouTube Channel Url.
+     */
+    url: string;
+}
+/**
  * YouTube Channel Class
  */
 export class YouTubeChannel {
@@ -49,6 +66,14 @@ export class YouTubeChannel {
      */
     subscribers?: string;
     /**
+     * All channels credited on a collaboration video/playlist.
+     *
+     * Only present when YouTube credits more than one channel. For single-channel
+     * content this is `undefined` and {@link YouTubeChannel.id}, {@link YouTubeChannel.name}
+     * and {@link YouTubeChannel.url} reference the sole channel.
+     */
+    collaborators?: ChannelCollaborator[];
+    /**
      * YouTube Channel Constructor
      * @param data YouTube Channel data that we recieve from basic info or from search
      */
@@ -62,6 +87,7 @@ export class YouTubeChannel {
         this.url = data.url || null;
         this.icons = data.icons || [{ url: null, width: 0, height: 0 }];
         this.subscribers = data.subscribers || null;
+        this.collaborators = data.collaborators?.length ? data.collaborators : undefined;
     }
 
     /**
@@ -95,7 +121,8 @@ export class YouTubeChannel {
             url: this.url,
             icons: this.icons,
             type: this.type,
-            subscribers: this.subscribers
+            subscribers: this.subscribers,
+            collaborators: this.collaborators
         };
     }
 }
@@ -133,4 +160,8 @@ interface ChannelJSON {
      * YouTube Channel subscribers count.
      */
     subscribers?: string;
+    /**
+     * All channels credited on a collaboration video/playlist.
+     */
+    collaborators?: ChannelCollaborator[];
 }

@@ -5,6 +5,7 @@ import { YouTubePlayList } from '../classes/Playlist';
 import { InfoData, StreamInfoData } from './constants';
 import { URL, URLSearchParams } from 'node:url';
 import { parseAudioFormats } from '../stream';
+import { parseChannelFromRun } from './channel';
 
 interface InfoOptions {
     htmldata?: boolean;
@@ -564,6 +565,7 @@ export function getPlaylistVideos(data: any, limit = Infinity): YouTubeVideo[] {
         if (limit === videos.length) break;
         const info = data[i].playlistVideoRenderer;
         if (!info || !info.shortBylineText) continue;
+        const channel = parseChannelFromRun(info.shortBylineText.runs[0]);
 
         videos.push(
             new YouTubeVideo({
@@ -576,12 +578,10 @@ export function getPlaylistVideos(data: any, limit = Infinity): YouTubeVideo[] {
                     ? new Date(parseInt(info.upcomingEventData.startTime) * 1000)
                     : undefined,
                 channel: {
-                    id: info.shortBylineText.runs[0].navigationEndpoint.browseEndpoint.browseId || undefined,
-                    name: info.shortBylineText.runs[0].text || undefined,
-                    url: `https://www.youtube.com${
-                        info.shortBylineText.runs[0].navigationEndpoint.browseEndpoint.canonicalBaseUrl ||
-                        info.shortBylineText.runs[0].navigationEndpoint.commandMetadata.webCommandMetadata.url
-                    }`,
+                    id: channel.id,
+                    name: channel.name,
+                    url: channel.url,
+                    collaborators: channel.collaborators,
                     icon: undefined
                 }
             })
@@ -757,7 +757,7 @@ function getWatchPlaylist(response: any, body: any, url: string): YouTubePlayLis
         DEFAULT_API_KEY;
 
     const videoCount = playlist_details.totalVideos;
-    const channel = playlist_details.shortBylineText?.runs?.[0];
+    const channel = parseChannelFromRun(playlist_details.shortBylineText?.runs?.[0]);
     const badge = playlist_details.badges?.[0]?.metadataBadgeRenderer?.style.toLowerCase();
 
     return new YouTubePlayList({
@@ -775,12 +775,10 @@ function getWatchPlaylist(response: any, body: any, url: string): YouTubePlayLis
         videos: videos,
         url: url,
         channel: {
-            id: channel?.navigationEndpoint?.browseEndpoint?.browseId || null,
-            name: channel?.text || null,
-            url: `https://www.youtube.com${
-                channel?.navigationEndpoint?.browseEndpoint?.canonicalBaseUrl ||
-                channel?.navigationEndpoint?.commandMetadata?.webCommandMetadata?.url
-            }`,
+            id: channel.id,
+            name: channel.name,
+            url: channel.url,
+            collaborators: channel.collaborators,
             verified: Boolean(badge?.includes('verified')),
             artist: Boolean(badge?.includes('artist'))
         }
@@ -803,6 +801,9 @@ function getNormalPlaylist(response: any, body: any): YouTubePlayList {
     if (!data.title.runs || !data.title.runs.length) throw new Error('Failed to Parse Playlist info.');
 
     const author = playlist_details[1]?.playlistSidebarSecondaryInfoRenderer.videoOwner;
+    const authorChannel = author
+        ? parseChannelFromRun(author.videoOwnerRenderer.title.runs[0], author.videoOwnerRenderer.navigationEndpoint)
+        : undefined;
     const views = data.stats.length === 3 ? data.stats[1].simpleText.replace(/\D/g, '') : 0;
     const lastUpdate =
         data.stats
@@ -827,14 +828,12 @@ function getNormalPlaylist(response: any, body: any): YouTubePlayList {
         videos: videos,
         url: `https://www.youtube.com/playlist?list=${data.title.runs[0].navigationEndpoint.watchEndpoint.playlistId}`,
         link: `https://www.youtube.com${data.title.runs[0].navigationEndpoint.commandMetadata.webCommandMetadata.url}`,
-        channel: author
+        channel: authorChannel
             ? {
-                  name: author.videoOwnerRenderer.title.runs[0].text,
-                  id: author.videoOwnerRenderer.title.runs[0].navigationEndpoint.browseEndpoint.browseId,
-                  url: `https://www.youtube.com${
-                      author.videoOwnerRenderer.navigationEndpoint.commandMetadata.webCommandMetadata.url ||
-                      author.videoOwnerRenderer.navigationEndpoint.browseEndpoint.canonicalBaseUrl
-                  }`,
+                  name: authorChannel.name,
+                  id: authorChannel.id,
+                  url: authorChannel.url,
+                  collaborators: authorChannel.collaborators,
                   icons: author.videoOwnerRenderer.thumbnail.thumbnails ?? []
               }
             : {},
@@ -854,7 +853,7 @@ function getWatchPlaylistVideos(data: any, limit = Infinity): YouTubeVideo[] {
         if (limit === videos.length) break;
         const info = data[i].playlistPanelVideoRenderer;
         if (!info || !info.shortBylineText) continue;
-        const channel_info = info.shortBylineText.runs[0];
+        const channel_info = parseChannelFromRun(info.shortBylineText.runs[0]);
 
         videos.push(
             new YouTubeVideo({
@@ -866,12 +865,10 @@ function getWatchPlaylistVideos(data: any, limit = Infinity): YouTubeVideo[] {
                 upcoming:
                     info.thumbnailOverlays[0].thumbnailOverlayTimeStatusRenderer?.style === 'UPCOMING' || undefined,
                 channel: {
-                    id: channel_info.navigationEndpoint.browseEndpoint.browseId || undefined,
-                    name: channel_info.text || undefined,
-                    url: `https://www.youtube.com${
-                        channel_info.navigationEndpoint.browseEndpoint.canonicalBaseUrl ||
-                        channel_info.navigationEndpoint.commandMetadata.webCommandMetadata.url
-                    }`,
+                    id: channel_info.id,
+                    name: channel_info.name,
+                    url: channel_info.url,
+                    collaborators: channel_info.collaborators,
                     icon: undefined
                 }
             })

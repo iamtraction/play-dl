@@ -3,6 +3,7 @@ import { YouTubePlayList } from '../classes/Playlist';
 import { YouTubeChannel } from '../classes/Channel';
 import { YouTube } from '..';
 import { YouTubeThumbnail } from '../classes/Thumbnail';
+import { parseChannelFromRun } from './channel';
 
 const BLURRED_THUMBNAILS = [
     '-oaymwEpCOADEI4CSFryq4qpAxsIARUAAAAAGAElAADIQj0AgKJDeAHtAZmZGUI=',
@@ -139,7 +140,7 @@ export function parseChannel(data?: any): YouTubeChannel {
 export function parseVideo(data?: any): YouTubeVideo {
     if (!data || !data.videoRenderer) throw new Error('Failed to Parse YouTube Video');
 
-    const channel = data.videoRenderer.ownerText.runs[0];
+    const channel = parseChannelFromRun(data.videoRenderer.ownerText?.runs?.[0]);
     const badge = data.videoRenderer.ownerBadges?.[0]?.metadataBadgeRenderer?.style?.toLowerCase();
     const durationText = data.videoRenderer.lengthText;
     const res = new YouTubeVideo({
@@ -153,14 +154,12 @@ export function parseVideo(data?: any): YouTubeVideo {
         duration_raw: durationText ? durationText.simpleText : null,
         thumbnails: data.videoRenderer.thumbnail.thumbnails,
         channel: {
-            id: channel.navigationEndpoint.browseEndpoint.browseId || null,
-            name: channel.text || null,
-            url: `https://www.youtube.com${
-                channel.navigationEndpoint.browseEndpoint.canonicalBaseUrl ||
-                channel.navigationEndpoint.commandMetadata.webCommandMetadata.url
-            }`,
-            icons: data.videoRenderer.channelThumbnailSupportedRenderers.channelThumbnailWithLinkRenderer.thumbnail
-                .thumbnails,
+            id: channel.id,
+            name: channel.name,
+            url: channel.url,
+            collaborators: channel.collaborators,
+            icons: data.videoRenderer.channelThumbnailSupportedRenderers?.channelThumbnailWithLinkRenderer?.thumbnail
+                ?.thumbnails,
             verified: Boolean(badge?.includes('verified')),
             artist: Boolean(badge?.includes('artist'))
         },
@@ -184,7 +183,7 @@ export function parsePlaylist(data?: any): YouTubePlayList {
 
     const thumbnail =
         data.playlistRenderer.thumbnails[0].thumbnails[data.playlistRenderer.thumbnails[0].thumbnails.length - 1];
-    const channel = data.playlistRenderer.shortBylineText.runs?.[0];
+    const channel = parseChannelFromRun(data.playlistRenderer.shortBylineText?.runs?.[0]);
 
     const res = new YouTubePlayList(
         {
@@ -197,9 +196,10 @@ export function parsePlaylist(data?: any): YouTubePlayList {
                 width: thumbnail.width
             },
             channel: {
-                id: channel?.navigationEndpoint.browseEndpoint.browseId,
-                name: channel?.text,
-                url: `https://www.youtube.com${channel?.navigationEndpoint.commandMetadata.webCommandMetadata.url}`
+                id: channel.id,
+                name: channel.name,
+                url: channel.url,
+                collaborators: channel.collaborators
             },
             videos: parseInt(data.playlistRenderer.videoCount.replace(/\D/g, ''))
         },
