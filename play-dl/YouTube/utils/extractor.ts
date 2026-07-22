@@ -695,7 +695,11 @@ async function getAndroidFormats(videoId: string, cookieJar: { [key: string]: st
             context: {
                 client: {
                     clientName: 'ANDROID',
-                    clientVersion: '16.49',
+                    clientVersion: '21.26.364',
+                    androidSdkVersion: 30,
+                    osName: 'Android',
+                    osVersion: '11',
+                    userAgent: 'com.google.android.youtube/21.26.364 (Linux; U; Android 11) gzip',
                     hl: 'en',
                     timeZone: 'UTC',
                     utcOffsetMinutes: 0
@@ -725,9 +729,12 @@ async function getIOSFormats(videoId: string, cookieJar: { [key: string]: string
             context: {
                 client: {
                     clientName: 'IOS',
-                    clientVersion: '19.24.3',
-                    deviceModel: 'iPhone16,1',
-                    userAgent: 'com.google.ios.youtube/19.24.3 (iPhone; CPU iPhone OS 17_5 like Mac OS X)',
+                    clientVersion: '21.26.4',
+                    deviceMake: 'Apple',
+                    deviceModel: 'iPhone16,2',
+                    osName: 'iPhone',
+                    osVersion: '18.3.2.22D82',
+                    userAgent: 'com.google.ios.youtube/21.26.4 (iPhone16,2; U; CPU iOS 18_3_2 like Mac OS X;)',
                     hl: 'en',
                     timeZone: 'UTC',
                     utcOffsetMinutes: 0
