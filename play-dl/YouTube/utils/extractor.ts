@@ -298,15 +298,7 @@ export async function video_basic_info(url: string, options: InfoOptions = {}): 
     });
     let format = [];
     if (!upcoming) {
-        // format.push(...(player_response.streamingData.formats ?? []));
-        // format.push(...(player_response.streamingData.adaptiveFormats ?? []));
-
-        // get the formats for the android player for legacy videos
-        // fixes the stream being closed because not enough data
-        // arrived in time for ffmpeg to be able to extract audio data
-        // if (parseAudioFormats(format).length === 0 && !options.htmldata) {
-            format = await getAndroidFormats(vid.videoId, cookieJar, body);
-        // }
+        format = await getFormats(vid.videoId, cookieJar, body);
     }
     const LiveStreamData = {
         isLive: video_details.live,
@@ -405,18 +397,7 @@ export async function video_stream_info(url: string, options: InfoOptions = {}):
     };
     let format = [];
     if (!upcoming) {
-        // format.push(...(player_response.streamingData.formats ?? []));
-        // format.push(...(player_response.streamingData.adaptiveFormats ?? []));
-
-        // get the formats for the android player for legacy videos
-        // fixes the stream being closed because not enough data
-        // arrived in time for ffmpeg to be able to extract audio data
-        // if (parseAudioFormats(format).length === 0 && !options.htmldata) {
-        //     format = await getAndroidFormats(player_response.videoDetails.videoId, cookieJar, body);
-        // }
-
-        // get the formats for the ios player
-        format = await getIOSFormats(player_response.videoDetails.videoId, cookieJar, body);
+        format = await getFormats(player_response.videoDetails.videoId, cookieJar, body);
     }
 
     const LiveStreamData = {
@@ -683,41 +664,58 @@ async function acceptViewerDiscretion(
     return { streamingData };
 }
 
-async function getAndroidFormats(videoId: string, cookieJar: { [key: string]: string }, body: string): Promise<any[]> {
-    const apiKey =
-        body.split('INNERTUBE_API_KEY":"')[1]?.split('"')[0] ??
-        body.split('innertubeApiKey":"')[1]?.split('"')[0] ??
-        DEFAULT_API_KEY;
-
-    const response = await request(`https://www.youtube.com/youtubei/v1/player?key=${apiKey}&prettyPrint=false`, {
-        method: 'POST',
-        body: JSON.stringify({
-            context: {
-                client: {
-                    clientName: 'ANDROID',
-                    clientVersion: '21.26.364',
-                    androidSdkVersion: 30,
-                    osName: 'Android',
-                    osVersion: '11',
-                    userAgent: 'com.google.android.youtube/21.26.364 (Linux; U; Android 11) gzip',
-                    hl: 'en',
-                    timeZone: 'UTC',
-                    utcOffsetMinutes: 0
-                }
-            },
-            videoId: videoId,
-            playbackContext: { contentPlaybackContext: { html5Preference: 'HTML5_PREF_WANTS' } },
-            contentCheckOk: true,
-            racyCheckOk: true
-        }),
-        cookies: true,
-        cookieJar
-    });
-
-    return JSON.parse(response).streamingData.formats;
+/**
+ * InnerTube player client used to fetch stream formats.
+ * These app clients return direct (non-ciphered, non-throttled) URLs, so their
+ * formats need no signature/n-token deciphering. Versions are verified against
+ * the live youtubei player API; when streaming breaks, refresh them against
+ * yt-dlp's INNERTUBE_CLIENTS.
+ */
+interface InnertubeClient {
+    clientName: string;
+    clientVersion: string;
+    userAgent: string;
+    deviceMake?: string;
+    deviceModel?: string;
+    osName?: string;
+    osVersion?: string;
+    androidSdkVersion?: number;
 }
 
-async function getIOSFormats(videoId: string, cookieJar: { [key: string]: string }, body: string): Promise<any[]> {
+/**
+ * Player clients tried, in order, when fetching stream formats. The first one
+ * that returns a playable response wins; the rest act as fallbacks.
+ */
+const INNERTUBE_CLIENTS: InnertubeClient[] = [
+    {
+        clientName: 'IOS',
+        clientVersion: '21.26.4',
+        deviceMake: 'Apple',
+        deviceModel: 'iPhone16,2',
+        osName: 'iPhone',
+        osVersion: '18.3.2.22D82',
+        userAgent: 'com.google.ios.youtube/21.26.4 (iPhone16,2; U; CPU iOS 18_3_2 like Mac OS X;)'
+    },
+    {
+        clientName: 'ANDROID',
+        clientVersion: '21.26.364',
+        androidSdkVersion: 30,
+        osName: 'Android',
+        osVersion: '11',
+        userAgent: 'com.google.android.youtube/21.26.364 (Linux; U; Android 11) gzip'
+    }
+];
+
+/**
+ * Requests the youtubei player endpoint using a single InnerTube client.
+ * @returns the parsed player response
+ */
+async function fetchPlayerResponse(
+    client: InnertubeClient,
+    videoId: string,
+    cookieJar: { [key: string]: string },
+    body: string
+): Promise<any> {
     const apiKey =
         body.split('INNERTUBE_API_KEY":"')[1]?.split('"')[0] ??
         body.split('innertubeApiKey":"')[1]?.split('"')[0] ??
@@ -728,13 +726,7 @@ async function getIOSFormats(videoId: string, cookieJar: { [key: string]: string
         body: JSON.stringify({
             context: {
                 client: {
-                    clientName: 'IOS',
-                    clientVersion: '21.26.4',
-                    deviceMake: 'Apple',
-                    deviceModel: 'iPhone16,2',
-                    osName: 'iPhone',
-                    osVersion: '18.3.2.22D82',
-                    userAgent: 'com.google.ios.youtube/21.26.4 (iPhone16,2; U; CPU iOS 18_3_2 like Mac OS X;)',
+                    ...client,
                     hl: 'en',
                     timeZone: 'UTC',
                     utcOffsetMinutes: 0
@@ -749,7 +741,32 @@ async function getIOSFormats(videoId: string, cookieJar: { [key: string]: string
         cookieJar
     });
 
-    return JSON.parse(response).streamingData.adaptiveFormats;
+    return JSON.parse(response);
+}
+
+/**
+ * Fetches stream formats by trying each client in {@link INNERTUBE_CLIENTS} in
+ * order, returning the combined (muxed + adaptive) formats from the first client
+ * whose response is playable. Falls back to the next client when a request fails
+ * or the video is not playable for that client.
+ * @returns array of formats, or an empty array if no client succeeds
+ */
+async function getFormats(videoId: string, cookieJar: { [key: string]: string }, body: string): Promise<any[]> {
+    for (const client of INNERTUBE_CLIENTS) {
+        let player: any;
+        try {
+            player = await fetchPlayerResponse(client, videoId, cookieJar, body);
+        } catch {
+            continue;
+        }
+        if (player?.playabilityStatus?.status !== 'OK') continue;
+        const formats = [
+            ...(player.streamingData?.formats ?? []),
+            ...(player.streamingData?.adaptiveFormats ?? [])
+        ];
+        if (formats.length > 0) return formats;
+    }
+    return [];
 }
 
 function getWatchPlaylist(response: any, body: any, url: string): YouTubePlayList {
