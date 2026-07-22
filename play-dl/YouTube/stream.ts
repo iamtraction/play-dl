@@ -1,5 +1,6 @@
 import { request_content_length, request_stream } from '../Request';
 import { LiveStream, Stream } from './classes/LiveStream';
+import { HLSStream } from './classes/HLSStream';
 import { SeekStream } from './classes/SeekStream';
 import { InfoData, StreamInfoData } from './utils/constants';
 import { video_stream_info } from './utils/extractor';
@@ -42,7 +43,7 @@ export function parseAudioFormats(formats: any[]) {
 /**
  * Type for YouTube Stream
  */
-export type YouTubeStream = Stream | LiveStream | SeekStream;
+export type YouTubeStream = Stream | LiveStream | SeekStream | HLSStream;
 /**
  * Stream command for YouTube
  * @param url YouTube URL
@@ -82,12 +83,35 @@ export async function stream_from_info(
         );
     }
 
-    const audioFormat = parseAudioFormats(info.format);
+    // Pick a playable source, in order of preference:
+    //   1. an audio-only format with a direct URL (best; can be Opus, no ffmpeg)
+    //   2. the video's HLS manifest (AAC; needs ffmpeg)
+    //   3. any format with a direct URL, usually a muxed one (AAC; needs ffmpeg)
+    // YouTube's SABR migration means (1) is often unavailable now, so (2)/(3)
+    // act as fallbacks before giving up.
+    const audioFormat = parseAudioFormats(info.format).filter((f) => f.url);
+    if (audioFormat.length === 0) {
+        if (info.LiveStreamData.hlsManifestUrl) return new HLSStream(info.LiveStreamData.hlsManifestUrl);
+        const progressive = info.format.find((f) => f.url);
+        if (!progressive || !progressive.url)
+            throw new Error('No playable stream source (direct URL or HLS manifest) was returned for this video.');
+        const progressiveUrl = progressive.url;
+        const length = progressive.contentLength
+            ? Number(progressive.contentLength)
+            : await request_content_length(progressiveUrl);
+        return new Stream(
+            progressiveUrl,
+            StreamType.Arbitrary,
+            info.video_details.durationInSec,
+            length,
+            info.video_details.url,
+            options
+        );
+    }
     if (typeof options.quality !== 'number') options.quality = audioFormat.length - 1;
     else if (options.quality <= 0) options.quality = 0;
     else if (options.quality >= audioFormat.length) options.quality = audioFormat.length - 1;
-    if (audioFormat.length !== 0) final.push(audioFormat[options.quality]);
-    else final.push(info.format[info.format.length - 1]);
+    final.push(audioFormat[options.quality]);
     let type: StreamType =
         final[0].codec === 'opus' && final[0].container === 'webm' ? StreamType.WebmOpus : StreamType.Arbitrary;
     await request_stream(`https://${new URL(final[0].url).host}/generate_204`);

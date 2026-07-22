@@ -296,15 +296,10 @@ export async function video_basic_info(url: string, options: InfoOptions = {}): 
         music,
         chapters
     });
-    let format = [];
-    if (!upcoming) {
-        format = await getFormats(vid.videoId, cookieJar, body);
-    }
-    const LiveStreamData = {
-        isLive: video_details.live,
-        dashManifestUrl: player_response.streamingData?.dashManifestUrl ?? null,
-        hlsManifestUrl: player_response.streamingData?.hlsManifestUrl ?? null
-    };
+    const { formats: format, hlsManifestUrl } = upcoming
+        ? { formats: [] as any[], hlsManifestUrl: null }
+        : await getFormats(vid.videoId, cookieJar, body);
+    const LiveStreamData = buildLiveStreamData(video_details.live, player_response, hlsManifestUrl);
     return {
         LiveStreamData,
         html5player,
@@ -395,16 +390,15 @@ export async function video_stream_info(url: string, options: InfoOptions = {}):
         url: `https://www.youtube.com/watch?v=${player_response.videoDetails.videoId}`,
         durationInSec: (duration < 0 ? 0 : duration) || 0
     };
-    let format = [];
-    if (!upcoming) {
-        format = await getFormats(player_response.videoDetails.videoId, cookieJar, body);
-    }
+    const { formats: format, hlsManifestUrl } = upcoming
+        ? { formats: [] as any[], hlsManifestUrl: null }
+        : await getFormats(player_response.videoDetails.videoId, cookieJar, body);
 
-    const LiveStreamData = {
-        isLive: player_response.videoDetails.isLiveContent,
-        dashManifestUrl: player_response.streamingData?.dashManifestUrl ?? null,
-        hlsManifestUrl: player_response.streamingData?.hlsManifestUrl ?? null
-    };
+    const LiveStreamData = buildLiveStreamData(
+        player_response.videoDetails.isLiveContent,
+        player_response,
+        hlsManifestUrl
+    );
     return await decipher_info(
         {
             LiveStreamData,
@@ -745,13 +739,31 @@ async function fetchPlayerResponse(
 }
 
 /**
- * Fetches stream formats by trying each client in {@link INNERTUBE_CLIENTS} in
- * order, returning the combined (muxed + adaptive) formats from the first client
- * whose response is playable. Falls back to the next client when a request fails
- * or the video is not playable for that client.
- * @returns array of formats, or an empty array if no client succeeds
+ * Builds the LiveStreamData block, preferring an HLS manifest surfaced by the
+ * stream clients and falling back to the one embedded in the watch page's
+ * player response.
  */
-async function getFormats(videoId: string, cookieJar: { [key: string]: string }, body: string): Promise<any[]> {
+function buildLiveStreamData(isLive: boolean, player_response: any, hlsManifestUrl: string | null) {
+    return {
+        isLive,
+        dashManifestUrl: player_response.streamingData?.dashManifestUrl ?? null,
+        hlsManifestUrl: hlsManifestUrl ?? player_response.streamingData?.hlsManifestUrl ?? null
+    };
+}
+
+/**
+ * Fetches stream formats by trying each client in {@link INNERTUBE_CLIENTS} in
+ * order, returning the combined (muxed + adaptive) formats and HLS manifest URL
+ * from the first client that yields a streamable source. Falls back to the next
+ * client when a request fails or the video is not playable for that client.
+ * @returns the formats and HLS manifest URL (formats empty / URL null if none succeed)
+ */
+async function getFormats(
+    videoId: string,
+    cookieJar: { [key: string]: string },
+    body: string
+): Promise<{ formats: any[]; hlsManifestUrl: string | null }> {
+    let fallback: { formats: any[]; hlsManifestUrl: string | null } = { formats: [], hlsManifestUrl: null };
     for (const client of INNERTUBE_CLIENTS) {
         let player: any;
         try {
@@ -764,9 +776,15 @@ async function getFormats(videoId: string, cookieJar: { [key: string]: string },
             ...(player.streamingData?.formats ?? []),
             ...(player.streamingData?.adaptiveFormats ?? [])
         ];
-        if (formats.length > 0) return formats;
+        const hlsManifestUrl = player.streamingData?.hlsManifestUrl ?? null;
+        // Prefer a client that yields a streamable source: direct format URLs or
+        // an HLS manifest. Some clients (e.g. ANDROID) report OK but return only
+        // SABR data with neither, so keep looking and only fall back to them for
+        // metadata if nothing streamable is found.
+        if (formats.some((f) => f.url) || hlsManifestUrl) return { formats, hlsManifestUrl };
+        if (fallback.formats.length === 0 && formats.length > 0) fallback = { formats, hlsManifestUrl };
     }
-    return [];
+    return fallback;
 }
 
 function getWatchPlaylist(response: any, body: any, url: string): YouTubePlayList {
